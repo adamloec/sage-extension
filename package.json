@@ -1,0 +1,87 @@
+{
+  "name": "sage-extension",
+  "displayName": "Sage",
+  "publisher": "Sage",
+  "description": "Sage coding assistant extension for VSCode",
+  "icon": "images/logo.png",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sage.installBackend",
+        "title": "Sage: Install Backend"
+      },
+      {
+        "command": "sage.openPanel",
+        "title": "Sage: Open Assistant Panel"
+      },
+      {
+        "command": "sage.openConnectionPanel",
+        "title": "Sage: Configure Backend Connection"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sage.openPanel",
+        "key": "ctrl+shift+s",
+        "mac": "cmd+shift+s"
+      },
+      {
+        "command": "sage.openConnectionPanel",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b"
+      }
+    ],
+    "configuration": {
+      "title": "Sage",
+      "properties": {
+        "sage.remoteBackendUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "URL of the external Sage server (when not running in standalone mode)"
+        },
+        "sage.standalone": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to run Sage with the bundled local backend (true) or connect to an external server (false)"
+        },
+        "sage.isConfigured": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the user has configured their backend preferences"
+        }
+      }
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/adamloec/sage.git"
+    }
+  },
+  "config": {
+    "localBackendUrl": "http://localhost:8000"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "python-shell": "^5.0.0"
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.9.36",
+    "@types/node": "^16.18.126",
+    "@types/vscode": "^1.97.0",
+    "typescript": "^4.9.5"
+  }
+}
