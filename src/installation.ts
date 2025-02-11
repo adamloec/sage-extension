@@ -6,7 +6,7 @@ import * as fs from 'fs';
 
 const execAsync = promisify(exec);
 
-class BackendInstaller {
+export class BackendInstaller {
     private context: vscode.ExtensionContext;
     private extensionPath: string;
     private ENV_NAME: string;
@@ -124,9 +124,9 @@ class BackendInstaller {
                     await execAsync(torchCommand);
                 }
                 
-                // Then install sage
+                // Then install sage (setup.py is in the root directory)
                 progress.report({ message: 'Installing backend...' });
-                await execAsync(`"${pipPath}" install -e "git+https://github.com/adamloec/sage.git#subdirectory=server&egg=sage" --no-cache-dir`);
+                await execAsync(`"${pipPath}" install -e "git+https://github.com/adamloec/sage.git#egg=sage" --no-cache-dir`);
                 
                 // Verify the installation
                 const pythonPath = process.platform === 'win32' ? 

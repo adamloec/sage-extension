@@ -1,7 +1,7 @@
-
 import * as vscode from 'vscode';
-const { BackendInstaller } = require('../installation');
 import axios from 'axios';
+const { BackendInstaller } = require('../installation');
+import { loadServerProfiles, saveServerProfiles } from '../utils/server_profiles';
 
 class ConnectionPanel {
     private _context: vscode.ExtensionContext;
@@ -42,10 +42,9 @@ class ConnectionPanel {
 
         // Get current configuration
         const config = vscode.workspace.getConfiguration('sage');
-        const currentRemoteBackendUrl = config.get('remoteBackendUrl') as string;
+        const currentRemoteBackendUrl = config.get('currentRemoteBackendUrl') as string;
         const isStandalone = config.get('standalone') as boolean;
         const isConfigured = config.get('isConfigured') as boolean;
-
 
         // Check if backend is installed locally
         const installer = new BackendInstaller(this._context);
@@ -70,24 +69,47 @@ class ConnectionPanel {
                                 throw new Error('Backend URL required for remote connection');
                             }   
 
-                            // Test connection
+                            // For remote backend, test connection and update persisted server profiles
                             if (!isStandalone) {
-                                const response = await axios.get(`${remoteBackendUrl}/health`);
-                                if (response.status !== 200) {
+                                const healthResponse = await axios.get(`${remoteBackendUrl}/health`);
+                                if (healthResponse.status !== 200) {
                                     throw new Error('Could not connect to backend');
                                 }
+                                
+                                // Retrieve persisted server profiles from the global storage
+                                let serverProfiles = await loadServerProfiles(this._context);
+
+                                // Check if we already have a profile for this server
+                                let storedProfile = serverProfiles[remoteBackendUrl];
+
+                                // Call the API endpoint to create or get a user record
+                                const userApiUrl = `${remoteBackendUrl}/api/user/users`;
+                                interface UserResponseData {
+                                    id: string;
+                                }
+                                
+                                const userResponse = await axios.post<UserResponseData>(
+                                    userApiUrl,
+                                    {}, // no body needed
+                                    {
+                                        headers: storedProfile ? { 'x-user-id': storedProfile.userId } : {}
+                                    }
+                                );
+
+                                // Save or update the user id for this server in the serverProfiles mapping
+                                serverProfiles[remoteBackendUrl] = { userId: userResponse.data.id };
+                                await saveServerProfiles(this._context, serverProfiles);
                             }
 
-                            // Update configuration
+                            // Update configuration settings for the connection type
                             await vscode.workspace.getConfiguration().update('sage.standalone', isStandalone, true);
-                            await vscode.workspace.getConfiguration().update('sage.remoteBackendUrl', 
+                            await vscode.workspace.getConfiguration().update(
+                                'sage.currentRemoteBackendUrl', 
                                 isStandalone ? 'http://localhost:8000' : remoteBackendUrl, 
                                 true
                             );
-
                             await vscode.workspace.getConfiguration().update('sage.isConfigured', true, true);
 
-                            // Show success and open main panel
                             vscode.window.showInformationMessage('Backend configuration saved successfully');
                             this.dispose();
                             await vscode.commands.executeCommand('sage.openPanel');
@@ -106,7 +128,6 @@ class ConnectionPanel {
                         }
                         break;
                 }
-
             },
             undefined,
             this._disposables
@@ -155,7 +176,6 @@ class ConnectionPanel {
         <body class="bg-dark-grey text-gray-200 h-screen flex items-center justify-center">
             <div class="max-w-md w-full p-8 bg-light-grey rounded-xl shadow-lg">
                 <h1 class="text-2xl font-bold mb-6 text-center">Select Sage Backend</h1>
-                
                 <div class="space-y-6">
                     <!-- Mode Selection -->
                     <div class="space-y-4">
@@ -199,7 +219,6 @@ class ConnectionPanel {
                             value="${!isStandalone ? currentRemoteBackendUrl : ''}"
                             placeholder="Enter backend URL (e.g., http://localhost:8000)"
                             class="w-full p-2 mb-4 bg-dark-grey border border-border-grey rounded-md focus:outline-none focus:border-blue-500"
-
                         >
                     </div>
 
@@ -230,10 +249,8 @@ class ConnectionPanel {
                     const remoteBackendUrl = document.getElementById('remoteBackendUrl').value.trim();
                     vscode.postMessage({ 
                         command: 'saveConfiguration',
-
                         mode: currentMode,
                         remoteBackendUrl: currentMode === 'standalone' ? null : remoteBackendUrl
-
                     });
                 }
             </script>
@@ -244,9 +261,9 @@ class ConnectionPanel {
     dispose() {
         this._panel?.dispose();
         while (this._disposables.length) {
-            const disposables = this._disposables.pop();
-            if (disposables) {
-                disposables.dispose();
+            const disposable = this._disposables.pop();
+            if (disposable) {
+                disposable.dispose();
             }
         }
     }

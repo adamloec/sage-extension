@@ -43,22 +43,28 @@
       }
     ],
     "configuration": {
+      "type": "object",
       "title": "Sage",
       "properties": {
-        "sage.remoteBackendUrl": {
+        "sage.currentRemoteBackendUrl": {
           "type": "string",
-          "default": "http://localhost:8000",
-          "description": "URL of the external Sage server (when not running in standalone mode)"
+          "default": "",
+          "description": "Current tracked remote URL for the Sage backend."
         },
         "sage.standalone": {
           "type": "boolean",
           "default": false,
-          "description": "Whether to run Sage with the bundled local backend (true) or connect to an external server (false)"
+          "description": "Enable standalone mode for the backend."
         },
         "sage.isConfigured": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the user has configured their backend preferences"
+          "description": "Tracks if the user has already configured the backend."
+        },
+        "sage.promptForBackendOnActivation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prompt for backend installation on activation even if the backend is already installed."
         }
       }
     },
@@ -66,9 +72,6 @@
       "type": "git",
       "url": "https://github.com/adamloec/sage.git"
     }
-  },
-  "config": {
-    "localBackendUrl": "http://localhost:8000"
   },
   "dependencies": {
     "axios": "^1.7.9",

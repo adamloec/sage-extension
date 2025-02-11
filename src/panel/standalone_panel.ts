@@ -1,116 +1,120 @@
 import * as vscode from 'vscode';
 const axios = require('axios');
-const { MessageManager } = require('../utils/message_manager');
-import { loadServerProfiles } from '../utils/server_profiles';
+import { ServerManager } from '../utils/server_manager';
+import { MessageManager } from '../utils/message_manager';
+import { getSettingsModalHtml, getSettingsModalScripts } from './modals/settings_modal';
 
-export class SagePanel {
+export class StandalonePanel {
     private _context: vscode.ExtensionContext;
     private _panel: vscode.WebviewPanel | undefined;
     private _disposables: vscode.Disposable[];
-    static currentPanel: SagePanel | undefined;
+    static currentPanel: StandalonePanel | undefined;
     private _currentSessionId: string | undefined;
+
+    private _serverManager: ServerManager;
 
     constructor(context: vscode.ExtensionContext) {
         this._context = context;
-        this._panel = undefined;
+        this._serverManager = new ServerManager(context);
         this._disposables = [];
         this._currentSessionId = undefined;
     }
 
     static async createOrShow(context: vscode.ExtensionContext) {
-        const config = vscode.workspace.getConfiguration('sage');
-        // This panel now assumes remote connection mode.
         const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
-
-        if (SagePanel.currentPanel && SagePanel.currentPanel._panel) {
-            SagePanel.currentPanel._panel.reveal(column);
-            return SagePanel.currentPanel;
+        
+        if (StandalonePanel.currentPanel && StandalonePanel.currentPanel._panel) {
+            StandalonePanel.currentPanel._panel.reveal(column);
+            return StandalonePanel.currentPanel;
         }
-
         const panel = vscode.window.createWebviewPanel(
-            'sagePanel',
-            'Sage',
+            'sageStandalone',
+            'Sage (Standalone Mode)',
             column,
             { enableScripts: true, retainContextWhenHidden: true }
         );
+        StandalonePanel.currentPanel = new StandalonePanel(context);
+        StandalonePanel.currentPanel._panel = panel;
 
-        SagePanel.currentPanel = new SagePanel(context);
-        SagePanel.currentPanel._panel = panel;
+        panel.onDidDispose(() => {
+            StandalonePanel.currentPanel?.dispose();
+        }, null, context.subscriptions);
 
-        // Dispose panel resources when the panel is closed.
-        panel.onDidDispose(
-            async () => {
-                try {
-                    await SagePanel.currentPanel?.dispose();
-                    MessageManager.showInfo('Disconnected from server');
-                } catch (error: any) {
-                    console.error('Error during panel disposal:', error);
-                    MessageManager.showError(`Error during disconnection: ${error.message}`);
-                }
-            },
-            null,
-            context.subscriptions
-        );
-
-        await SagePanel.currentPanel._initialize();
-        return SagePanel.currentPanel;
+        await StandalonePanel.currentPanel._initialize();
+        return StandalonePanel.currentPanel;
     }
 
     async _initialize() {
         if (!this._panel) return;
-        const config = vscode.workspace.getConfiguration('sage');
-        const backendUrl = config.get('remoteBackendUrl') as string;
 
         try {
-            this._updateContent('Connected to remote server', true);
+            // Update UI to show initialization/start-up
+            this._updateContent('Starting server...', false);
+
+            // Start the local server (standalone mode)
+            await this._serverManager.startServer();
+
+            // Check if the panel was disposed while starting up
+            if (!this._panel) {
+                console.log('Panel disposed during initialization. Stopping server.');
+                await this._serverManager.stopServer();
+                return;
+            }
+            this._updateContent('Server running', true);
+            MessageManager.showInfo('Sage server started successfully');
+
+            // Inform the webview of successful startup
             this._panel.webview.postMessage({
                 command: 'showStatus',
-                message: 'Connected to remote server'
+                message: 'Server started successfully'
             });
 
+            // Register message handlers for the webview
             this._panel.webview.onDidReceiveMessage(
                 async (message: { command: string; text?: string }) => {
+                    const backendUrl = 'http://localhost:8000';
+
                     switch (message.command) {
-                        case 'sendMessage':
+                        case 'sendMessage': {
                             try {
+
+                                // Validate that a model is loaded before sending any messages.
+                                const modelResponse = await axios.get(`${backendUrl}/api/llm`);
+                                if (!modelResponse.data?.model_name) {
+                                    MessageManager.showError('Load a model before attempting to use the chat.');
+                                    this._panel?.webview.postMessage({ command: 'clearPendingMessage' });
+                                    return;
+                                }
+
                                 if (message.text) {
-                                    // Create a chat session if one hasn't been initiated yet.
+                                    // Create a chat session if none has been initiated yet.
                                     if (!this._currentSessionId) {
-                                        const serverProfiles = await loadServerProfiles(this._context);
-                                        const profile = serverProfiles[backendUrl];
-                                        if (!profile || !profile.userId) {
-                                            MessageManager.showError("User ID not configured. Please update your connection settings.");
-                                            return;
-                                        }
                                         const sessionResponse = await axios.post(
                                             `${backendUrl}/api/chat/sessions`,
                                             null,
-                                            { headers: { 'x-user-id': profile.userId } }
+                                            { headers: { 'x-user-id': 'standalone-user' } }
                                         );
                                         this._currentSessionId = sessionResponse.data.session_id;
-                                        // Load initial chat history from the backend session.
+                                        // Send the initial chat history from the backend
                                         this._panel?.webview.postMessage({
                                             command: 'updateChatHistory',
                                             messages: sessionResponse.data.messages
                                         });
                                     }
 
-                                    // Append the user's message immediately to the chat.
+                                    // Immediately add the user's message to the chat history.
                                     this._panel?.webview.postMessage({
                                         command: 'addMessage',
-                                        message: {
-                                            role: 'user',
-                                            content: message.text
-                                        }
+                                        message: { role: 'user', content: message.text }
                                     });
 
-                                    // Send the message to the remote backend.
+                                    // Post the user's message to the backend.
                                     const response = await axios.post(
                                         `${backendUrl}/api/chat/sessions/${this._currentSessionId}/messages`,
                                         { content: message.text }
                                     );
 
-                                    // If a response is received from the assistant, add it to the chat.
+                                    // Add the assistant's (model) response if available.
                                     if (response.data.message) {
                                         this._panel?.webview.postMessage({
                                             command: 'addMessage',
@@ -119,24 +123,19 @@ export class SagePanel {
                                     }
                                 }
                             } catch (error: any) {
-                                console.error('Error sending message:', error);
+                                console.error('Error in sendMessage:', error);
                                 MessageManager.showError(`Failed to send message: ${error.message}`);
-                                // Display the error as an assistant's response.
+                                // Display error as an assistant message.
                                 this._panel?.webview.postMessage({
                                     command: 'addMessage',
-                                    message: {
-                                        role: 'assistant',
-                                        content: `Error: ${error.message}`
-                                    }
+                                    message: { role: 'assistant', content: `Error: ${error.message}` }
                                 });
-                                // Clear any pending message state.
-                                this._panel?.webview.postMessage({
-                                    command: 'clearPendingMessage'
-                                });
+                                // Clear any pending UI state.
+                                this._panel?.webview.postMessage({ command: 'clearPendingMessage' });
                             }
                             break;
-
-                        case 'checkModelStatus':
+                        }
+                        case 'checkModelStatus': {
                             try {
                                 const modelResponse = await axios.get(`${backendUrl}/api/llm`);
                                 this._panel?.webview.postMessage({
@@ -145,16 +144,15 @@ export class SagePanel {
                                 });
                             } catch (error) {
                                 console.error('Error checking model status:', error);
-                                this._panel?.webview.postMessage({
-                                    command: 'updateModelStatus',
-                                    modelName: null
-                                });
+                                this._panel?.webview.postMessage({ command: 'updateModelStatus', modelName: null });
                             }
                             break;
-
-                        case 'openSettings':
+                        }
+                        case 'openSettings': {
+                            this._panel?.webview.postMessage({ command: 'openSettings' });
+                            break;
+                        }
                         case 'openConfig': {
-                            // Open the connection panel to update settings.
                             vscode.commands.executeCommand('sage.openConnectionPanel');
                             break;
                         }
@@ -163,31 +161,35 @@ export class SagePanel {
                 undefined,
                 this._disposables
             );
+
         } catch (error: any) {
-            console.error('Initialization error:', error);
-            this._updateContent('Connection failed', false);
-            MessageManager.showError(`Failed to connect: ${error.message}`);
-            this._panel.webview.postMessage({
+            console.error('StandalonePanel initialization error:', error);
+            await this._serverManager.stopServer();
+            this._updateContent('Server stopped', false);
+            MessageManager.showError(`Failed to start server: ${error.message}`);
+            this._panel?.webview.postMessage({
                 command: 'showError',
-                message: `Failed to connect: ${error.message}`
+                message: `Failed to start server: ${error.message}`
             });
             throw error;
+        } finally {
+            this._isInitializing = false;
         }
     }
 
-    _updateContent(status: string, isRunning: boolean = false) {
+    _updateContent(status: string, isRunning: boolean) {
         if (!this._panel) return;
         this._panel.webview.html = this._getWebviewContent(status, isRunning);
     }
 
-    _getWebviewContent(status: string, isRunning: boolean = false): string {
-        // Remote-mode HTML content; settings UI is minimal.
+    _getWebviewContent(status: string, isRunning: boolean): string {
+        // Note: We assume standalone mode so we can always include the settings modal.
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sage</title>
+    <title>Sage (Standalone Mode)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -207,7 +209,7 @@ export class SagePanel {
 </head>
 <body class="bg-dark-grey text-gray-200 h-screen">
     <div class="container mx-auto max-w-4xl h-full flex flex-col p-6">
-        <!-- Connection Status -->
+        <!-- Server Status Text -->
         <div class="w-[90%] mx-auto mb-2 text-sm">
             <span class="${isRunning ? 'text-green-500' : 'text-red-500'}">
                 ${status}
@@ -233,13 +235,13 @@ export class SagePanel {
             <!-- Chat messages will appear here -->
         </div>
 
-        <!-- Message Input -->
+        <!-- Floating Input Container -->
         <div class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl">
             <div class="flex gap-2 p-4 bg-light-grey border border-border-grey rounded-xl shadow-lg">
                 <textarea 
-                    id="messageInput"
                     class="flex-1 p-3 bg-lighter-grey border border-border-grey rounded-md resize-none min-h-[40px] focus:outline-none focus:border-blue-500"
                     placeholder="Type your message here..."
+                    id="messageInput"
                     rows="1"
                     onkeydown="handleKeyPress(event)"
                 ></textarea>
@@ -252,13 +254,16 @@ export class SagePanel {
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    ${getSettingsModalHtml()}
     <script>
         const vscode = acquireVsCodeApi();
+
         window.addEventListener('message', event => {
             const message = event.data;
             switch (message.command) {
                 case 'clearPendingMessage':
-                    // Implement any pending message clearing if needed.
+                    // Optionally clear pending UI states
                     break;
                 case 'addMessage': {
                     const chatHistory = document.getElementById('chatHistory');
@@ -283,11 +288,11 @@ export class SagePanel {
                     break;
                 }
                 case 'updateChatHistory': {
-                    const chatHistory = document.getElementById('chatHistory');
-                    chatHistory.innerHTML = '';
-                    message.messages.forEach((msg) => {
+                    const history = document.getElementById('chatHistory');
+                    history.innerHTML = '';
+                    message.messages.forEach(msg => {
                         if (msg.role === 'user') {
-                            chatHistory.innerHTML += \`
+                            history.innerHTML += \`
                                 <div class="flex justify-end mb-2">
                                     <div class="bg-blue-600 text-white rounded-lg py-2 px-4 max-w-[80%]">
                                         \${msg.content}
@@ -295,7 +300,7 @@ export class SagePanel {
                                 </div>
                             \`;
                         } else {
-                            chatHistory.innerHTML += \`
+                            history.innerHTML += \`
                                 <div class="flex justify-start mb-2">
                                     <div class="bg-lighter-grey text-white rounded-lg py-2 px-4 max-w-[80%]">
                                         \${msg.content}
@@ -304,7 +309,7 @@ export class SagePanel {
                             \`;
                         }
                     });
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                    history.scrollTop = history.scrollHeight;
                     break;
                 }
                 case 'updateModelStatus': {
@@ -320,12 +325,16 @@ export class SagePanel {
                     }
                     break;
                 }
+                case 'openSettings': {
+                    document.getElementById('settingsModal').classList.remove('hidden');
+                    break;
+                }
                 case 'showStatus': {
-                    // Optionally handle status updates.
+                    // Optionally, update local UI according to server status
                     break;
                 }
                 case 'showError': {
-                    // Optionally display error messages on the UI.
+                    // Optionally, display error messages in the UI
                     break;
                 }
             }
@@ -333,11 +342,11 @@ export class SagePanel {
 
         function sendMessage() {
             const input = document.getElementById('messageInput');
-            const text = input.value.trim();
-            if (text) {
+            const message = input.value.trim();
+            if (message) {
                 input.value = '';
                 input.style.height = 'auto';
-                vscode.postMessage({ command: 'sendMessage', text });
+                vscode.postMessage({ command: 'sendMessage', text: message });
             }
         }
 
@@ -349,26 +358,33 @@ export class SagePanel {
         }
 
         function openSettings() {
-            vscode.postMessage({ command: 'openSettings' });
+            document.getElementById('settingsModal').classList.remove('hidden');
         }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        ${getSettingsModalScripts()}
     </script>
 </body>
 </html>`;
     }
 
     async dispose() {
+        if (!this._panel) return;
+        try {
+            await this._serverManager.stopServer();
+            vscode.window.showInformationMessage("Server stopped successfully");
+        } catch (error) {
+            console.error('Error during standalone panel disposal:', error);
+        }
         while (this._disposables.length) {
             const disposable = this._disposables.pop();
-            if (disposable) {
-                disposable.dispose();
-            }
+            if (disposable) disposable.dispose();
         }
-        if (this._panel) {
-            this._panel.dispose();
-            this._panel = undefined;
-        }
-        SagePanel.currentPanel = undefined;
+        this._panel.dispose();
+        this._panel = undefined;
+        StandalonePanel.currentPanel = undefined;
     }
-}
-
-module.exports = { SagePanel };
+} 

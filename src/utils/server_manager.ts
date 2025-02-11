@@ -6,7 +6,7 @@ const { platform } = require('os');
 const path = require('path');
 const axios = require('axios');
 
-class ServerManager {
+export class ServerManager {
     private _context: vscode.ExtensionContext;
     private _process: any;
     private _isStarting: boolean;
@@ -206,7 +206,7 @@ class ServerManager {
 
             return {
                 command: sagePath,
-                args: ['serve', '--port', this._port.toString()],
+                args: ['serve', '--port', this._port.toString(), '--mode', 'standalone'],
                 useShell: true
             };
         } catch (error) {
@@ -220,5 +220,3 @@ class ServerManager {
         return this._process !== null;
     }
 }
-
-module.exports = { ServerManager };
