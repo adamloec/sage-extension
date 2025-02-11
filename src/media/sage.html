@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sage</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-grey': '#1e1e1e',
+                        'light-grey': '#2d2d2d',
+                        'lighter-grey': '#3d3d3d',
+                        'border-grey': '#4d4d4d',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Prevent the body from scrolling */
+        html, body {
+            overflow: hidden;
+        }
+        /* Simple context menu styling */
+        #contextMenu {
+            position: absolute;
+            background-color: #ffffff;
+            color: #000000;
+            border: none;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            display: none;
+            z-index: 1000;
+            min-width: 150px;
+        }
+        #contextMenu div {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        #contextMenu div:hover {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body class="bg-dark-grey text-gray-200 h-screen overflow-hidden">
+    <div class="container mx-auto max-w-5xl h-full flex flex-col p-6 overflow-hidden">
+        <!-- Header (fixed height) -->
+        <div class="flex items-center justify-between mb-4 flex-shrink-0">
+            <!-- Connection Status -->
+            <div class="text-sm">
+                <span class="%STATUS_CLASS%">
+                    <i class="fas fa-circle mr-1"></i>%STATUS%
+                </span>
+            </div>
+            <!-- Header Buttons -->
+            <div class="flex space-x-2">
+                <button 
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                    onclick="reconfigure()">
+                    <i class="fas fa-cog mr-2"></i>Configure
+                </button>
+                <button 
+                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm"
+                    onclick="newChatSession()">
+                    <i class="fas fa-plus mr-2"></i>New Chat
+                </button>
+            </div>
+        </div>
+        <!-- Main Content (fills remaining height) -->
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Chat Panel (Left Column) -->
+            <div class="flex flex-col flex-1 mr-4 overflow-hidden">
+                <!-- Chat History (scrollable area) -->
+                <div id="chatHistory" class="flex-1 overflow-y-auto min-h-0 p-4 bg-light-grey rounded-xl">
+                    <!-- Chat messages will appear here -->
+                </div>
+                <!-- Message Input (remains fixed) -->
+                <div class="mt-4 flex-shrink-0">
+                    <div class="flex gap-2 p-3 bg-lighter-grey rounded-xl">
+                        <textarea 
+                            id="messageInput"
+                            class="flex-1 p-3 bg-dark-grey rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            placeholder="Type your message here..."
+                            rows="1"
+                            onkeydown="handleKeyPress(event)"
+                        ></textarea>
+                        <button 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            onclick="sendMessage()">
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Sessions List (Right Column) -->
+            <div class="w-64 bg-light-grey p-4 rounded-xl">
+                <h2 class="text-lg font-bold mb-2">Chat Sessions</h2>
+                <div id="sessionList" class="overflow-y-auto" style="max-height: calc(100% - 2rem);">
+                    <!-- Sessions will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu for Session items -->
+    <div id="contextMenu">
+        <div onclick="deleteSessionOption()">Delete Chat Session</div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.command) {
+                case 'clearPendingMessage':
+                    // Implement any pending message clearing if needed.
+                    break;
+                case 'addMessage': {
+                    const chatHistory = document.getElementById('chatHistory');
+                    if (message.message.role === 'user') {
+                        chatHistory.innerHTML += `
+                            <div class="flex justify-end mb-2">
+                                <div class="bg-blue-600 text-white rounded-lg py-2 px-4 max-w-[80%]">
+                                    ${message.message.content}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        chatHistory.innerHTML += `
+                            <div class="flex justify-start mb-2">
+                                <div class="bg-lighter-grey text-white rounded-lg py-2 px-4 max-w-[80%]">
+                                    ${message.message.content}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                    break;
+                }
+                case 'updateChatHistory': {
+                    const chatHistory = document.getElementById('chatHistory');
+                    chatHistory.innerHTML = '';
+                    message.messages.forEach((msg) => {
+                        if (msg.role === 'user') {
+                            chatHistory.innerHTML += `
+                                <div class="flex justify-end mb-2">
+                                    <div class="bg-blue-600 text-white rounded-lg py-2 px-4 max-w-[80%]">
+                                        ${msg.content}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            chatHistory.innerHTML += `
+                                <div class="flex justify-start mb-2">
+                                    <div class="bg-lighter-grey text-white rounded-lg py-2 px-4 max-w-[80%]">
+                                        ${msg.content}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                    break;
+                }
+                case 'updateSessions': {
+                    const sessionList = document.getElementById('sessionList');
+                    sessionList.innerHTML = '';
+                    message.sessions.forEach(session => {
+                        sessionList.innerHTML += `
+                            <div class="p-2 cursor-pointer hover:bg-gray-700 rounded-lg" 
+                                 onclick="selectSession('${session.session_id}')" 
+                                 oncontextmenu="handleSessionRightClick(event, '${session.session_id}')">
+                                <div class="text-sm font-bold">Session: ${session.session_id}</div>
+                                <div class="text-xs text-gray-400">Last: ${session.last_message_at || 'N/A'}</div>
+                            </div>
+                        `;
+                    });
+                    break;
+                }
+                case 'showStatus': {
+                    // Optionally handle status updates.
+                    break;
+                }
+                case 'showError': {
+                    // Optionally display error messages on the UI.
+                    break;
+                }
+                case 'updateStatus': {
+                    const statusElement = document.querySelector('.text-sm span');
+                    if (statusElement) {
+                        statusElement.className = message.status.class;
+                        statusElement.innerHTML = `<i class="fas fa-circle mr-1"></i>${message.status.text}`;
+                    }
+                    break;
+                }
+            }
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (text) {
+                input.value = '';
+                input.style.height = 'auto';
+                vscode.postMessage({ command: 'sendMessage', text });
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        function newChatSession() {
+            vscode.postMessage({ command: 'newChatSession' });
+        }
+
+        function selectSession(sessionId) {
+            vscode.postMessage({ command: 'selectSession', sessionId });
+        }
+
+        // Right-click context menu for session items
+        function handleSessionRightClick(event, sessionId) {
+            event.preventDefault();
+            event.stopPropagation();
+            const contextMenu = document.getElementById('contextMenu');
+            contextMenu.style.display = 'block';
+            contextMenu.style.top = event.clientY + 'px';
+            contextMenu.style.left = event.clientX + 'px';
+            contextMenu.setAttribute('data-session-id', sessionId);
+        }
+
+        function deleteSessionOption() {
+            const contextMenu = document.getElementById('contextMenu');
+            const sessionId = contextMenu.getAttribute('data-session-id');
+            vscode.postMessage({ command: 'deleteSession', sessionId: sessionId });
+            contextMenu.style.display = 'none';
+        }
+
+        // Hide the context menu on any click outside.
+        document.addEventListener('click', function(event) {
+            const contextMenu = document.getElementById('contextMenu');
+            if (contextMenu.style.display === 'block') {
+                contextMenu.style.display = 'none';
+            }
+        });
+
+        function reconfigure() {
+            vscode.postMessage({ command: 'reconfigure' });
+        }
+    </script>
+</body>
+</html> 

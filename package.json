@@ -28,18 +28,10 @@
       {
         "command": "sage.openConnectionPanel",
         "title": "Sage: Configure Backend Connection"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "sage.openPanel",
-        "key": "ctrl+shift+s",
-        "mac": "cmd+shift+s"
       },
       {
-        "command": "sage.openConnectionPanel",
-        "key": "ctrl+shift+b",
-        "mac": "cmd+shift+b"
+        "command": "sage.switchView",
+        "title": "Sage: Switch View"
       }
     ],
     "configuration": {
@@ -71,6 +63,24 @@
     "repository": {
       "type": "git",
       "url": "https://github.com/adamloec/sage.git"
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sageSidebar",
+          "title": "Sage",
+          "icon": "images/sage.svg"
+        }
+      ]
+    },
+    "views": {
+      "sageSidebar": [
+        {
+          "type": "webview",
+          "id": "sageView",
+          "name": "Sage Chat"
+        }
+      ]
     }
   },
   "dependencies": {

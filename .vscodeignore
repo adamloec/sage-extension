@@ -14,5 +14,7 @@ out/test/**
 
 !out/**/*.js
 !src/panel/**
+!src/media/**
+!src/utils/**
 !images/**
 !node_modules/**

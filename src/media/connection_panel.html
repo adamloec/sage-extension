@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Sage Backend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-grey': '#1e1e1e',
+                        'light-grey': '#2d2d2d',
+                        'lighter-grey': '#3d3d3d',
+                        'border-grey': '#4d4d4d',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark-grey text-gray-200 h-screen flex items-center justify-center">
+    <div class="max-w-md w-full p-8 bg-light-grey rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold mb-6 text-center">Select Sage Backend</h1>
+        <div class="space-y-6">
+            <!-- Mode Selection -->
+            <div class="space-y-4">
+                <label class="block font-medium mb-2">Backend Mode</label>
+                <div class="space-y-2">
+                    <label class="flex items-center space-x-3">
+                        <input type="radio" name="mode" value="standalone" {{standaloneChecked}} class="form-radio" onchange="updateMode('standalone')">
+                        <span>Standalone (Local Backend)</span>
+                    </label>
+                    <label class="flex items-center space-x-3">
+                        <input type="radio" name="mode" value="remote" {{remoteChecked}} class="form-radio" onchange="updateMode('remote')">
+                        <span>Remote Backend</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Standalone Section -->
+            <div id="standaloneSection" class="p-4 bg-lighter-grey rounded-lg {{standaloneHidden}}">
+                {{installationStatus}}
+            </div>
+
+            <!-- Remote Section -->
+            <div id="remoteSection" class="p-4 bg-lighter-grey rounded-lg {{remoteHidden}}">
+                <input type="text" id="remoteBackendUrl" value="{{remoteBackendUrl}}" placeholder="Enter backend URL (e.g., http://localhost:8000)" class="w-full p-2 mb-4 bg-dark-grey border border-border-grey rounded-md focus:outline-none focus:border-blue-500">
+            </div>
+
+            <!-- Save Button -->
+            <button onclick="saveConfiguration()" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                Connect to Sage
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        let currentMode = '{{currentMode}}';
+
+        function updateMode(mode) {
+            currentMode = mode;
+            document.getElementById('standaloneSection').classList.toggle('hidden', mode !== 'standalone');
+            document.getElementById('remoteSection').classList.toggle('hidden', mode === 'standalone');
+        }
+
+        function installBackend() {
+            vscode.postMessage({ command: 'installBackend' });
+        }
+
+        function saveConfiguration() {
+            const remoteBackendUrl = document.getElementById('remoteBackendUrl').value.trim();
+            vscode.postMessage({ 
+                command: 'saveConfiguration',
+                mode: currentMode,
+                remoteBackendUrl: currentMode === 'standalone' ? null : remoteBackendUrl
+            });
+        }
+    </script>
+</body>
+</html> 
