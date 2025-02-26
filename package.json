@@ -1,100 +1,69 @@
 {
-  "name": "sage-extension",
+  "name": "sage",
   "displayName": "Sage",
-  "publisher": "Sage",
-  "description": "Sage coding assistant extension for VSCode",
-  "icon": "images/logo.png",
+  "description": "Chat with AI models directly in VS Code",
   "version": "0.0.1",
+  "publisher": "sage",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sage-Organization/sage-extension"
+  },
   "engines": {
-    "vscode": "^1.97.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
+  "icon": "images/logo.png",
   "contributes": {
-    "commands": [
-      {
-        "command": "sage.installBackend",
-        "title": "Sage: Install Backend"
-      },
-      {
-        "command": "sage.openPanel",
-        "title": "Sage: Open Assistant Panel"
-      },
-      {
-        "command": "sage.openConnectionPanel",
-        "title": "Sage: Configure Backend Connection"
-      },
-      {
-        "command": "sage.switchView",
-        "title": "Sage: Switch View"
-      }
-    ],
-    "configuration": {
-      "type": "object",
-      "title": "Sage",
-      "properties": {
-        "sage.currentRemoteBackendUrl": {
-          "type": "string",
-          "default": "",
-          "description": "Current tracked remote URL for the Sage backend."
-        },
-        "sage.standalone": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable standalone mode for the backend."
-        },
-        "sage.isConfigured": {
-          "type": "boolean",
-          "default": false,
-          "description": "Tracks if the user has already configured the backend."
-        },
-        "sage.promptForBackendOnActivation": {
-          "type": "boolean",
-          "default": false,
-          "description": "Prompt for backend installation on activation even if the backend is already installed."
-        }
-      }
-    },
-    "repository": {
-      "type": "git",
-      "url": "https://github.com/adamloec/sage.git"
-    },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "sageSidebar",
+          "id": "sage",
           "title": "Sage",
           "icon": "images/sage.svg"
         }
       ]
     },
     "views": {
-      "sageSidebar": [
+      "sage": [
         {
           "type": "webview",
-          "id": "sageView",
-          "name": "Sage Chat"
+          "id": "sage.chatView",
+          "name": "Chat"
         }
       ]
-    }
-  },
-  "dependencies": {
-    "axios": "^1.7.9",
-    "python-shell": "^5.0.0"
+    },
+    "commands": [
+      {
+        "command": "sage.openChat",
+        "title": "Open Sage Chat",
+        "icon": "$(comment-discussion)"
+      }
+    ]
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/axios": "^0.9.36",
-    "@types/node": "^16.18.126",
-    "@types/vscode": "^1.97.0",
-    "typescript": "^4.9.5"
+    "@types/node": "^16.18.34",
+    "@types/uuid": "^9.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint": "^8.47.0",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "@vscode/vsce": "^3.2.2",
+    "ollama": "^0.5.13",
+    "uuid": "^9.0.0"
   }
 }

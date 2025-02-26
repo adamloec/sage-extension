@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} https://*.vscode-cdn.net https://cdn.tailwindcss.com https://cdnjs.cloudflare.com 'unsafe-inline'; script-src {{cspSource}} https://cdn.tailwindcss.com https://cdnjs.cloudflare.com 'unsafe-inline'; font-src https://cdnjs.cloudflare.com; connect-src 'self';">
+    <title>Sage</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{styleUri}}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <!-- Left side: Model Display and Selector -->
+            <div class="flex items-center space-x-2 relative">
+                <div class="model-selector-container">
+                    <span id="currentModel" class="text-sm"></span>
+                    <button id="modelDropdownButton" class="p-1 hover:bg-lighter-grey rounded">
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </button>
+                    <div id="modelSelect" class="hidden model-dropdown rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                        <!-- Model options will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center: Current Session ID -->
+            <div id="currentSessionId" class="text-sm text-gray-500"></div>
+            
+            <!-- Right side: Icon buttons -->
+            <div class="flex items-center space-x-2">
+                <!-- History Icon -->
+                <div class="relative">
+                    <button 
+                        id="historyDropdownButton"
+                        class="p-2"
+                        title="Chat History">
+                        <i class="fas fa-history"></i>
+                    </button>
+                    <div id="historyDropdown" 
+                         class="hidden history-dropdown absolute right-0 mt-2 w-64 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                        <div id="sessionSelect" class="py-2">
+                            <!-- Sessions will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- New Chat Icon -->
+                <button 
+                    id="newSession"
+                    class="p-2"
+                    title="New Chat">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div id="chatMessages" class="chat-container">
+            <!-- Chat messages will appear here -->
+        </div>
+
+        <!-- Message Input -->
+        <div class="input-area">
+            <div id="codePreview" class="hidden">
+                <!-- Code preview will be inserted here -->
+            </div>
+            <textarea 
+                id="userInput"
+                placeholder="Type your message here..."
+                rows="1"
+            ></textarea>
+            <button id="sendMessage">
+                submit <svg class="ml-1 w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5.25201 9.97523L16.9111 4.42326C18.6115 3.61355 20.3864 5.38846 19.5767 7.08885L14.0248 18.748C13.2661 20.3413 10.966 20.2427 10.3464 18.5904L9.3192 15.8512C9.11639 15.3104 8.68964 14.8836 8.14879 14.6808L5.40963 13.6536C3.75729 13.034 3.65873 10.7339 5.25201 9.97523Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        const initialState = {{initialState}};
+    </script>
+    <script type="module" src="{{mainScriptUri}}"></script>
+</body>
+</html> 
